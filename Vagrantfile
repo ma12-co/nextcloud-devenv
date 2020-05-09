@@ -37,7 +37,7 @@ Vagrant.configure("2") do |config|
   # Create a public network, which generally matched to bridged network.
   # Bridged networks make the machine appear as another physical device on
   # your network.
-  # config.vm.network "public_network"
+  config.vm.network "public_network", ip: "192.168.2.5"
 
   # Share an additional folder to the guest VM. The first argument is
   # the path on the host to the actual folder. The second argument is
@@ -49,13 +49,13 @@ Vagrant.configure("2") do |config|
   # backing providers for Vagrant. These expose provider-specific options.
   # Example for VirtualBox:
   #
-  # config.vm.provider "virtualbox" do |vb|
+  config.vm.provider "virtualbox" do |vb|
   #   # Display the VirtualBox GUI when booting the machine
   #   vb.gui = true
   #
-  #   # Customize the amount of memory on the VM:
-  #   vb.memory = "1024"
-  # end
+    # Customize the amount of memory on the VM:
+    vb.memory = "2048"
+  end
   #
   # View the documentation for the provider you are using for more
   # information on available options.
@@ -63,8 +63,34 @@ Vagrant.configure("2") do |config|
   # Enable provisioning with a shell script. Additional provisioners such as
   # Ansible, Chef, Docker, Puppet and Salt are also available. Please see the
   # documentation for more information about their specific syntax and use.
-  # config.vm.provision "shell", inline: <<-SHELL
-  #   apt-get update
-  #   apt-get install -y apache2
-  # SHELL
+  config.vm.provision "shell", inline: <<-SHELL
+  apt-get update
+  # Git
+  apt-get install -y git
+  sudo apt-get install -y apache2
+  
+  # Docker
+  #sudo apt-get install -y docker.io
+  #sudo systemctl start docker
+  #sudo systemctl enable docker
+  #docker --version
+  #
+  # Install nextcloud
+  ## clone server
+  #git clone https://github.com/nextcloud/server.git
+  #cd server
+  #git submodule update --init
+  ## Install docker ci containers
+  #docker run --rm -it --volume /home/vagrant/nextcloud-server/:/var/www/html --volume /var/www/html/data --volume /var/www/html/config --publish 8000:80 --publish 8443:443 --name nextcloud nextcloudci/acceptance-php7.3:acceptance-php7.3-2
+  #docker run --rm -it a2enmod ssl
+  #docker run --rm -it a2ensite default-ssl
+  #docker run --rm -it apt-get update && apt-get install -y ssl-cert
+  #docker run --rm -it service apache2 start
+  #docker exec -it nextcloud chown -R www-data:www-data /var/www/html/config /var/www/html/data
+  #docker exec -it --user www-data nextcloud bash -c "cd /var/www/html && php occ maintenance:install --admin-pass=admin"
+  #docker exec -it --user www-data nextcloud bash -c "cd /var/www/html && php occ app:enable spreed"
+  #docker exec -it --user www-data nextcloud bash -c "cd /var/www/html && php occ config:system:set trusted_domains 0 --value=192.168.33.10"
+  #docker exec -it --user www-data nextcloud bash -c "cd /var/www/html && php occ config:system:set allow_local_remote_servers --value true --type bool"
+  SHELL
+  
 end
