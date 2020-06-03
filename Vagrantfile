@@ -43,7 +43,8 @@ Vagrant.configure("2") do |config|
   # the path on the host to the actual folder. The second argument is
   # the path on the guest to mount the folder. And the optional third
   # argument is a set of non-required options.
-  # config.vm.synced_folder "../data", "/vagrant_data"
+  config.vm.synced_folder "./www", "/var/www", create: true
+  config.vm.synced_folder "./", "/vagrant" 
 
   # Provider-specific configuration so you can fine-tune various
   # backing providers for Vagrant. These expose provider-specific options.
@@ -54,43 +55,69 @@ Vagrant.configure("2") do |config|
   #   vb.gui = true
   #
     # Customize the amount of memory on the VM:
-    vb.memory = "2048"
+    vb.memory = "4096"
   end
-  #
-  # View the documentation for the provider you are using for more
-  # information on available options.
 
+  # Install required packages
+  config.vm.provision "shell", privileged: true, path: "provision.sh"
   # Enable provisioning with a shell script. Additional provisioners such as
   # Ansible, Chef, Docker, Puppet and Salt are also available. Please see the
   # documentation for more information about their specific syntax and use.
-  config.vm.provision "shell", inline: <<-SHELL
-  apt-get update
-  # Git
-  apt-get install -y git
-  sudo apt-get install -y apache2
-  
-  # Docker
-  #sudo apt-get install -y docker.io
-  #sudo systemctl start docker
-  #sudo systemctl enable docker
-  #docker --version
-  #
-  # Install nextcloud
-  ## clone server
-  #git clone https://github.com/nextcloud/server.git
-  #cd server
-  #git submodule update --init
-  ## Install docker ci containers
-  #docker run --rm -it --volume /home/vagrant/nextcloud-server/:/var/www/html --volume /var/www/html/data --volume /var/www/html/config --publish 8000:80 --publish 8443:443 --name nextcloud nextcloudci/acceptance-php7.3:acceptance-php7.3-2
-  #docker run --rm -it a2enmod ssl
-  #docker run --rm -it a2ensite default-ssl
-  #docker run --rm -it apt-get update && apt-get install -y ssl-cert
-  #docker run --rm -it service apache2 start
-  #docker exec -it nextcloud chown -R www-data:www-data /var/www/html/config /var/www/html/data
-  #docker exec -it --user www-data nextcloud bash -c "cd /var/www/html && php occ maintenance:install --admin-pass=admin"
-  #docker exec -it --user www-data nextcloud bash -c "cd /var/www/html && php occ app:enable spreed"
-  #docker exec -it --user www-data nextcloud bash -c "cd /var/www/html && php occ config:system:set trusted_domains 0 --value=192.168.33.10"
-  #docker exec -it --user www-data nextcloud bash -c "cd /var/www/html && php occ config:system:set allow_local_remote_servers --value true --type bool"
+  config.vm.provision "shell", privileged: true, inline: <<-SHELL
+
+  export DEBIAN_FRONTEND=noninteractive
+
+  echo "Clone the nc server"
+
+  # Remove default apache files
+  cd /var/www
+  rm -rf data
+  rm -rf html
+  mkdir data
+  mkdir html
+
+  # Clone the server
+  git clone https://github.com/nextcloud/server.git html/
+
+
+  echo "#### Update 3rd party modules ####"
+  cd /var/www/html
+  git submodule update --init
+
+  echo "#### Adjust permissions ####"
+  chmod o-rw /var/www/html
+  cd /var/www/html
+  chown -R www-data:www-data config ../data apps
+
+  # Add the domain to nextcloud.local
+  echo "127.0.0.1 nextcloud.local" >> /etc/hosts
+
+  # sed -i 's/{version}/'$1'/g' apache.conf
+  cp /vagrant/apache.conf /etc/apache2/sites-available/000-nextcloud.conf
+
+  # Create certificate
+  openssl req \
+    -x509 \
+    -nodes \
+    -days 365 \
+    -newkey rsa:2048 \
+     -subj '/CN=nextcloud.local/O=admin/C=IT' \
+    -keyout nextcloud.key \
+	-out nextcloud.crt
+
+  mkdir /etc/apache2/ssl
+
+  # copy cert to apache
+  cp nextcloud.crt /etc/apache2/ssl/nextcloud.crt
+  cp nextcloud.key /etc/apache2/ssl/nextcloud.key
+
+  # enable site
+  a2ensite 000-nextcloud.conf
+  "#### Restart web server ####"
+  systemctl restart apache2.service
   SHELL
+
+  config.vm.provision "shell", path: "nextcloud-config.sh"
+  config.vm.provision "shell", path: "install-apps.sh"
   
 end
